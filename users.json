@@ -1,0 +1,67 @@
+[
+  {
+    "role": "player",
+    "username": "abc",
+    "email": "abcd@gmail.com"
+  },
+  {
+    "role": "host",
+    "username": "vsd",
+    "email": "abcda@gmail.com"
+  },
+  {
+    "role": "host",
+    "username": "dfdrt",
+    "email": "addbcd@gmail.com"
+  },
+  {
+    "role": "host",
+    "username": "dddf",
+    "email": "abcdf@gmail.com"
+  },
+  {
+    "role": "host",
+    "username": "dfdsf",
+    "email": "ddf@gmail.com"
+  },
+  {
+    "role": "host",
+    "username": "fgfdg",
+    "email": "sanjaya@gmail.com"
+  },
+  {
+    "role": "player",
+    "username": "tgyhfg",
+    "email": "ghh@ds.com"
+  },
+  {
+    "role": "host",
+    "username": "fgfg",
+    "email": "gffgfgg@Gmail.com"
+  },
+  {
+    "role": "host",
+    "username": "fghgfhh",
+    "email": "fghfhggf@gmail.com"
+  },
+  {
+    "role": "host",
+    "username": "testadmin123",
+    "email": "testadmin123@example.com"
+  },
+  {
+    "role": "player",
+    "username": "fdg",
+    "email": "fdggfd@gjkd.com"
+  },
+  {
+    "role": "host",
+    "username": "fghfjhg",
+    "email": "fgrdjkjgd@gmil.com"
+  },
+  {
+    "role": "admin",
+    "username": "superadmin",
+    "email": "admin@killpro.com"
+  }
+]

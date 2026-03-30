@@ -1,0 +1,260 @@
+/* ============================================================
+   home.mobile.css
+   Place this file next to page.tsx (same directory).
+   Import it at the top of page.tsx:  import './home.mobile.css';
+   ============================================================ */
+
+/* ── Hero mobile background div (hidden on desktop) ── */
+.kp-hero-mobile-bg {
+  display: none;
+}
+
+/* ════════════════════════════════════════════════════════════
+   MOBILE  ≤ 768px
+   ════════════════════════════════════════════════════════════ */
+@media (max-width: 768px) {
+
+  /* ── Show hero image as full-bleed section background ── */
+  .kp-hero-mobile-bg {
+    display: block;
+    position: absolute;
+    inset: 0;
+    background-size: cover;
+    background-position: center top;
+    background-repeat: no-repeat;
+    z-index: 0;
+  }
+
+  /* Dark gradient overlay for text readability */
+  .kp-hero-mobile-bg::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+      to bottom,
+      rgba(0, 0, 0, 0.55) 0%,
+      rgba(0, 0, 0, 0.65) 50%,
+      rgba(0, 0, 0, 0.82) 100%
+    );
+  }
+
+  /* Hero section must be relative + overflow hidden to clip the bg */
+  .kp-hero-section {
+    position: relative;
+    overflow: hidden;
+    min-height: 100svh;
+  }
+
+  /* ── Hero inner: single-column, content above bg ── */
+  .kp-hero-inner {
+    position: relative;
+    z-index: 1;
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    padding-top: 80px !important;
+    padding-bottom: 60px !important;
+    gap: 0 !important;
+  }
+
+  /* ── Left panel: full width ── */
+  .kp-hero-left {
+    width: 100% !important;
+    max-width: 100% !important;
+    padding-right: 0 !important;
+  }
+
+  /* Force white text over dark image */
+  .kp-hero-left .kp-headline,
+  .kp-hero-left .kp-headline-em {
+    color: #ffffff !important;
+    text-shadow: 0 2px 16px rgba(0, 0, 0, 0.4);
+  }
+
+  .kp-hero-left .kp-subtext {
+    color: rgba(255, 255, 255, 0.88) !important;
+  }
+
+  .kp-hero-left .kp-subtext-strong {
+    color: #ffffff !important;
+  }
+
+  .kp-hero-left .kp-qs-value {
+    color: #ffffff !important;
+  }
+
+  .kp-hero-left .kp-qs-label {
+    color: rgba(255, 255, 255, 0.7) !important;
+  }
+
+  .kp-hero-left .kp-qs-divider {
+    background: rgba(255, 255, 255, 0.2) !important;
+  }
+
+  /* Pill / live tag on dark bg */
+  .kp-hero-left .pill-tag {
+    background: rgba(255, 255, 255, 0.12) !important;
+    border-color: rgba(255, 255, 255, 0.25) !important;
+    color: rgba(255, 255, 255, 0.9) !important;
+  }
+
+  /* Quick-stats: frosted glass treatment */
+  .kp-quick-stats {
+    background: rgba(0, 0, 0, 0.35) !important;
+    backdrop-filter: blur(8px) !important;
+    -webkit-backdrop-filter: blur(8px) !important;
+    border-radius: 12px !important;
+    padding: 16px !important;
+    border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  }
+
+  /* Hide desktop right column (image is now the bg) */
+  .kp-hero-right {
+    display: none !important;
+  }
+
+  /* Pull back deco rings on small screens */
+  .kp-hero-section .deco-ring,
+  .kp-hero-section .deco-ring-dashed {
+    opacity: 0.2 !important;
+  }
+
+  /* ── Typography ── */
+  .kp-headline {
+    font-size: clamp(2.4rem, 11vw, 3.5rem) !important;
+    line-height: 1.05 !important;
+  }
+
+  /* ── CTA buttons: full-width stacked ── */
+  .kp-cta-row {
+    flex-wrap: wrap !important;
+    gap: 10px !important;
+  }
+
+  .kp-cta-row .btn-primary,
+  .kp-cta-row .btn-secondary {
+    width: 100% !important;
+    justify-content: center !important;
+  }
+
+  /* ── Section headers ── */
+  .kp-section-header {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 16px !important;
+  }
+
+  .kp-section-title {
+    font-size: clamp(1.5rem, 6vw, 2.2rem) !important;
+  }
+
+  .kp-section-desc {
+    max-width: 100% !important;
+  }
+
+  /* ── Grids: 1 column ── */
+  .kp-feat-grid,
+  .kp-games-grid,
+  .kp-tourn-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* ── Stats grid: 2 × 2 ── */
+  .kp-stats-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 12px !important;
+  }
+
+  /* ── CTA section ── */
+  .kp-cta-title {
+    font-size: clamp(1.6rem, 7vw, 2.4rem) !important;
+    text-align: center !important;
+  }
+
+  .kp-cta-inner {
+    padding: 60px 20px !important;
+  }
+
+  .kp-cta-btns {
+    flex-direction: column !important;
+    width: 100% !important;
+    gap: 10px !important;
+  }
+
+  .kp-cta-btns .btn-primary,
+  .kp-cta-btns .btn-secondary {
+    width: 100% !important;
+    justify-content: center !important;
+  }
+
+  .kp-cta-body {
+    text-align: center !important;
+  }
+
+  /* ── Trust row ── */
+  .kp-trust-row {
+    flex-wrap: wrap !important;
+    justify-content: center !important;
+    gap: 8px !important;
+  }
+
+  .kp-trust-sep {
+    display: none !important;
+  }
+
+  /* ── Section padding & wrap gutters ── */
+  .kp-section {
+    padding: 48px 0 !important;
+  }
+
+  .kp-wrap,
+  .kp-wrap-w {
+    padding-left: 16px !important;
+    padding-right: 16px !important;
+  }
+}
+
+/* ════════════════════════════════════════════════════════════
+   VERY SMALL MOBILE  ≤ 480px
+   ════════════════════════════════════════════════════════════ */
+@media (max-width: 480px) {
+  .kp-headline {
+    font-size: clamp(2rem, 12vw, 2.8rem) !important;
+  }
+
+  .kp-stats-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+
+  .kp-feat-grid,
+  .kp-games-grid,
+  .kp-tourn-grid {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+/* ════════════════════════════════════════════════════════════
+   TABLET  769px – 1024px
+   ════════════════════════════════════════════════════════════ */
+@media (min-width: 769px) and (max-width: 1024px) {
+  .kp-hero-inner {
+    gap: 24px !important;
+  }
+
+  .kp-hero-right img {
+    transform: translateX(80px) !important;
+    max-width: 360px !important;
+  }
+
+  .kp-feat-grid,
+  .kp-games-grid,
+  .kp-tourn-grid,
+  .kp-stats-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+
+  .kp-section-header {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 12px !important;
+  }
+}
