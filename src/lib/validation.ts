@@ -20,6 +20,8 @@ export const tournamentSchema = Joi.object({
   maxPlayers: Joi.number().integer().min(2).max(100).required(),
   prizePool: Joi.number().min(0).required(),
   hostQRCodeURL: Joi.string().optional().allow(''), // Support for Base64 or URL
+  roomId: Joi.string().min(1).max(50).required(),
+  roomPassword: Joi.string().min(1).max(50).required(),
   scheduledAt: Joi.string().isoDate().required(),
 })
 
@@ -34,10 +36,28 @@ export const tournamentUpdateSchema = Joi.object({
 
 export const joinTournamentSchema = Joi.object({
   gameID: Joi.string().min(2).max(50).required(),
+  paymentScreenshot: Joi.string().optional(),
 })
 
 export const screenshotSchema = Joi.object({
   screenshotURL: Joi.string().required(), // Support for Base64 or URL
+})
+
+export const addFundsSchema = Joi.object({
+  amount: Joi.number().min(1).max(10000).required(),
+  paymentMethod: Joi.string().valid('credit_card', 'debit_card', 'bank_transfer', 'paypal').required()
+})
+
+export const withdrawSchema = Joi.object({
+  amount: Joi.number().min(1).max(10000).required(),
+  withdrawMethod: Joi.string().valid('bank_transfer', 'paypal', 'crypto').required()
+})
+
+export const adminAddFundsSchema = Joi.object({
+  userId: Joi.string().required(),
+  amount: Joi.number().min(1).max(50000).required(),
+  paymentMethod: Joi.string().valid('admin_credit', 'bank_transfer', 'paypal', 'crypto', 'manual').required(),
+  reason: Joi.string().optional().max(500)
 })
 
 export function validate<T>(schema: Joi.Schema, data: unknown): { value?: T; error?: string } {

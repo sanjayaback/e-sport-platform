@@ -119,7 +119,7 @@ export default function PlayerDashboard() {
         })
       )
       setTournaments(mine)
-    } catch (e) { console.error(e) }
+    } catch (e) { }
     finally { setLoading(false) }
   }, [user])
 
@@ -133,15 +133,18 @@ export default function PlayerDashboard() {
   )
 
   // ── Derived ─────────────────────────────────────────────────────────────────
-  const won            = tournaments.filter(t => String(t.winnerId) === user._id || (t.winnerId as any)?._id === user._id)
-  const active         = tournaments.filter(t => t.status !== 'finished')
-  const totalWinnings  = won.reduce((acc, t) => acc + t.prizePool, 0)
+  const won = tournaments.filter(t => 
+    t.status === 'finished' && 
+    (String(t.winnerId) === user._id || (t.winnerId as any)?._id === user._id)
+  )
+  const active = tournaments.filter(t => t.status !== 'finished')
+  const totalWinnings = won.reduce((acc, t) => acc + (Number(t.prizePool) || 0), 0)
 
   const statCards = [
     { label: 'Tournaments', value: tournaments.length,              icon: GamepadIcon },
     { label: 'Active',      value: active.length,                   icon: Trophy      },
     { label: 'Wins',        value: won.length,                      icon: Crown       },
-    { label: 'Winnings',    value: `$${totalWinnings.toLocaleString()}`, icon: DollarSign },
+    { label: 'Winnings',    value: `Rs.${totalWinnings.toLocaleString()}`, icon: DollarSign },
   ]
 
   return (
@@ -176,32 +179,7 @@ export default function PlayerDashboard() {
         <div className="animate-in-d1" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
 
           {/* Wallet card */}
-          <div className="card-clean ad-stat-card" style={{ padding: '28px 26px', gridColumn: '1 / 2' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
-              <div className="ad-stat-icon" style={{ margin: 0 }}>
-                <Wallet size={16} />
-              </div>
-              <div style={{ textAlign: 'right' }}>
-                <div className="ad-stat-label" style={{ marginBottom: 4 }}>Wallet Balance</div>
-                <div className="kp-qs-value" style={{ fontSize: 'clamp(1.6rem, 2.5vw, 2.2rem)' }}>
-                  ${Number(user.walletBalance).toLocaleString()}
-                </div>
-              </div>
-            </div>
-
-            {/* Divider */}
-            <hr className="kp-divider" style={{ marginBottom: 20 }} />
-
-            {/* Actions */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-              <button onClick={() => setModal('deposit')} className="btn-primary" style={{ justifyContent: 'center' }}>
-                <ArrowUpRight size={14} /> Deposit
-              </button>
-              <button onClick={() => setModal('withdraw')} className="btn-secondary" style={{ justifyContent: 'center' }}>
-                <ArrowDownLeft size={14} /> Withdraw
-              </button>
-            </div>
-          </div>
+          
 
           {/* Stat cards grid (2×2) */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
@@ -307,11 +285,11 @@ export default function PlayerDashboard() {
 
                       {/* Fee */}
                       <td className="ad-td ad-td-muted">
-                        {t.entryFee === 0 ? 'Free' : `$${t.entryFee}`}
+                        {t.entryFee === 0 ? 'Free' : `Rs.${t.entryFee}`}
                       </td>
 
                       {/* Prize */}
-                      <td className="ad-td ad-td-prize">${t.prizePool.toLocaleString()}</td>
+                      <td className="ad-td ad-td-prize">Rs.{t.prizePool.toLocaleString()}</td>
 
                       {/* Payment */}
                       <td className="ad-td">

@@ -16,7 +16,7 @@ export async function POST(req: NextRequest) {
 
     const { users } = await getTables()
     const rows = await users.getRows()
-    const userRow = rows.find(r => String(r.get('_id')) === payload.userId)
+    const userRow = rows.find((r: any) => String(r.get('_id')) === payload.userId)
     
     if (!userRow) return errorResponse('User not found', 404)
 

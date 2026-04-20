@@ -9,23 +9,19 @@ import {
   ChevronRight, Target, TrendingUp, Award, Gamepad2,
 } from 'lucide-react';
 import TournamentCard from '@/components/tournaments/TournamentCard';
-import dynamicImport from 'next/dynamic';
+import HeroBackground from '@/components/effects/HeroBackground';
 import type { ITournament } from '@/types';
+import { useAuth } from '@/components/AuthProvider';
 
 // Responsive styles live in a plain CSS file — no inline <style> = no hydration mismatch
 import './home.mobile.css';
-
-const HeroBackground = dynamicImport(
-  () => import('@/components/effects/HeroBackground'),
-  { ssr: false },
-);
 
 // ─── DATA ─────────────────────────────────────────────────────────────────────
 
 const PLATFORM_STATS = [
   { label: 'Active Tournaments', value: '140+',   icon: Target, bar: 65 },
   { label: 'Players',            value: '12K+',   icon: Users,  bar: 88 },
-  { label: 'Prize Pool',         value: '$450K+', icon: Award,  bar: 72 },
+  { label: 'Prize Pool',         value: 'Rs.450K+', icon: Award,  bar: 72 },
   { label: 'Regions',            value: '38+',    icon: Globe,  bar: 50 },
 ];
 
@@ -36,20 +32,21 @@ const FEATURES = [
 ];
 
 const GAMES = [
-  { name: 'PUBG Mobile',  players: '8.4K+', icon: '🎮', thumbClass: 'game-thumb-1' },
-  { name: 'Free Fire',    players: '3.8K+', icon: '🔥', thumbClass: 'game-thumb-2' },
-  { name: 'Call of Duty', players: '2.1K+', icon: '⚡', thumbClass: 'game-thumb-3' },
+  { name: 'PUBG Mobile',  players: '8.4K+', image: '/images/pubg.png', thumbClass: 'game-thumb-1' },
+  { name: 'Free Fire',    players: '3.8K+', image: '/images/freefire.png', thumbClass: 'game-thumb-2' },
+  { name: 'Call of Duty', players: '2.1K+', image: '/images/cod.png', thumbClass: 'game-thumb-3' },
 ];
 
 const QUICK_STATS = [
   { value: '12K+',   label: 'Active Players' },
-  { value: '$450K+', label: 'Prize Pool'      },
+  { value: 'Rs.450K+', label: 'Prize Pool'      },
   { value: '140+',   label: 'Tournaments'     },
 ];
 
 // ─── PAGE ─────────────────────────────────────────────────────────────────────
 
 export default function HomePage() {
+  const { user } = useAuth();
   const [liveTournaments, setLiveTournaments] = useState<ITournament[]>([]);
   const [loading, setLoading]                 = useState(true);
   const statsRef                              = useRef<HTMLDivElement>(null);
@@ -68,7 +65,6 @@ export default function HomePage() {
     axios
       .get('/api/tournaments?status=live&limit=4')
       .then(r => setLiveTournaments(r.data.data.tournaments))
-      .catch(console.error)
       .finally(() => setLoading(false));
   }, []);
 
@@ -115,9 +111,11 @@ export default function HomePage() {
                 Browse Tournaments
                 <ArrowRight size={15} />
               </Link>
-              <Link href="/auth/register" className="btn-secondary">
-                Create Account
-              </Link>
+              {!user && (
+                <Link href="/auth/register" className="btn-secondary">
+                  Create Account
+                </Link>
+              )}
             </div>
 
             <div className="kp-quick-stats animate-in-d3">
@@ -229,7 +227,10 @@ export default function HomePage() {
             {GAMES.map(game => (
               <div key={game.name} className="card-clean kp-game-card">
                 <div className={`kp-game-thumb ${game.thumbClass}`}>
-                  <span className="kp-game-icon">{game.icon}</span>
+                  <div className={`kp-game-thumb ${game.thumbClass}`}>
+  <img src={game.image} alt={game.name} className="kp-game-image" />
+  <span className="kp-game-pill">{game.players}</span>
+</div>
                   <span className="kp-game-pill">{game.players}</span>
                 </div>
                 <div className="kp-game-body">
@@ -337,9 +338,11 @@ export default function HomePage() {
             <Link href="/tournaments" className="btn-primary">
               <Trophy size={16} /> Join Tournament
             </Link>
-            <Link href="/auth/register" className="btn-secondary">
-              <Users size={16} /> Create Account
-            </Link>
+            {!user && (
+                <Link href="/auth/register" className="btn-secondary">
+                  Create Account
+                </Link>
+              )}
           </div>
           <div className="kp-divider kp-cta-divider" />
           <div className="kp-trust-row">

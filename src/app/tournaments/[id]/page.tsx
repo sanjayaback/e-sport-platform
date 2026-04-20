@@ -8,6 +8,7 @@ import { ITournament } from '@/types'
 import {
   Trophy, Users, Calendar, Zap, QrCode, Image as ImageIcon,
   CheckCircle, XCircle, Crown, Loader2, ArrowLeft, Info, Upload,
+  Copy, Eye, EyeOff, Gamepad2,
 } from 'lucide-react'
 import Link from 'next/link'
 
@@ -44,6 +45,9 @@ export default function TournamentDetailPage() {
   const [screenshotBase64,  setScreenshotBase64]  = useState('')
   const [submitMsg,         setSubmitMsg]         = useState('')
   const [error,             setError]             = useState('')
+  const [showPassword,      setShowPassword]      = useState(false)
+  const [copySuccess,       setCopySuccess]       = useState(false)
+  const [showRoomPopup,     setShowRoomPopup]     = useState(false)
 
   const fetchTournament = useCallback(async () => {
     try {
@@ -64,6 +68,32 @@ export default function TournamentDetailPage() {
     (p.playerId as any) === user?._id || (p.playerId as any)?._id === user?._id
   )
 
+  // Poll for payment approval updates if user has joined but payment not approved
+  useEffect(() => {
+    if (!isPlayer || !hasJoined || myEntry?.paymentApproved) return
+
+    const interval = setInterval(async () => {
+      try {
+        const res = await axios.get(`/api/tournaments/${id}`)
+        const updatedTournament = res.data.data.tournament
+        const updatedMyEntry = updatedTournament.players.find((p: any) =>
+          (p.playerId as any) === user?._id || (p.playerId as any)?._id === user?._id
+        )
+        
+        // If payment is now approved, update tournament and stop polling
+        if (updatedMyEntry?.paymentApproved && !myEntry?.paymentApproved) {
+          setTournament(updatedTournament)
+          setSubmitMsg('Payment approved! Room details are now available.')
+          clearInterval(interval)
+        }
+      } catch (err) {
+        console.error('Polling error:', err)
+      }
+    }, 10000) // Check every 10 seconds instead of 5
+
+    return () => clearInterval(interval)
+  }, [isPlayer, hasJoined, myEntry?.paymentApproved, user?._id, id, fetchTournament])
+
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
@@ -81,11 +111,38 @@ export default function TournamentDetailPage() {
 
   async function handleJoin() {
     if (!gameID.trim()) { setError('Please enter your Game ID'); return }
+    if (tournament && tournament.entryFee > 0 && !screenshotBase64) { setError('Please upload payment screenshot'); return }
     setJoining(true); setError('')
     try {
-      await axios.post(`/api/tournaments/join/${id}`, { gameID })
+      let paymentData: any = { gameID }
+      
+      // If there's a payment screenshot, upload it to Cloudinary first
+      if (tournament && tournament.entryFee > 0 && screenshotBase64) {
+        const response = await fetch(screenshotBase64)
+        const blob = await response.blob()
+        const file = new File([blob], 'payment.jpg', { type: 'image/jpeg' })
+        
+        const formData = new FormData()
+        formData.append('file', file)
+        formData.append('tournamentId', id as string)
+        formData.append('userId', user!._id)
+        
+        const uploadResponse = await axios.post('/api/upload/tournament-screenshot', formData, {
+          headers: { 'Content-Type': 'multipart/form-data' }
+        })
+        
+        if (!uploadResponse.data.success) {
+          throw new Error('Failed to upload payment screenshot to Cloudinary')
+        }
+        
+        paymentData.paymentScreenshot = uploadResponse.data.data.secure_url
+      }
+      
+      await axios.post(`/api/tournaments/join/${id}`, paymentData)
       await fetchTournament()
-      setSubmitMsg('Successfully joined! Please complete payment via QR code.')
+      setSubmitMsg('Successfully joined! Your payment is pending approval.')
+      setScreenshotBase64('')
+      setScreenshotPreview('')
     } catch (err: unknown) {
       setError((err as any)?.response?.data?.error || 'Failed to join')
     } finally { setJoining(false) }
@@ -95,12 +152,52 @@ export default function TournamentDetailPage() {
     if (!screenshotBase64) { setError('Please upload a screenshot'); return }
     setError(''); setTransmitting(true)
     try {
-      await axios.post(`/api/tournaments/screenshot/${id}`, { screenshotURL: screenshotBase64 })
+      // Convert base64 to file for Cloudinary upload
+      const response = await fetch(screenshotBase64)
+      const blob = await response.blob()
+      const file = new File([blob], 'screenshot.jpg', { type: 'image/jpeg' })
+      
+      // Upload to Cloudinary first
+      const formData = new FormData()
+      formData.append('file', file)
+      formData.append('tournamentId', id as string)
+      formData.append('userId', user!._id)
+      
+      const uploadResponse = await axios.post('/api/upload/tournament-screenshot', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      })
+      
+      if (!uploadResponse.data.success) {
+        throw new Error('Failed to upload to Cloudinary')
+      }
+      
+      // Submit Cloudinary URL to tournament API
+      const cloudinaryUrl = uploadResponse.data.data.secure_url
+      await axios.post(`/api/tournaments/screenshot/${id}`, { screenshotURL: cloudinaryUrl })
+      
       setSubmitMsg('Screenshot submitted! Awaiting host review.')
       await fetchTournament()
+      setScreenshotBase64('')
+      setScreenshotPreview('')
     } catch (err: unknown) {
-      setError((err as any)?.response?.data?.error || 'Failed to submit')
+      setError((err as any)?.response?.data?.error || 'Failed to submit screenshot')
     } finally { setTransmitting(false) }
+  }
+
+  async function handleCopyPassword() {
+    if (tournament?.roomPassword) {
+      try {
+        await navigator.clipboard.writeText(tournament.roomPassword)
+        setCopySuccess(true)
+        setTimeout(() => setCopySuccess(false), 2000)
+      } catch (err) {
+        console.error('Failed to copy password:', err)
+      }
+    }
+  }
+
+  function maskPassword(password: string) {
+    return '*'.repeat(password.length)
   }
 
   // ── Guards ──────────────────────────────────────────────────────────────────
@@ -131,7 +228,7 @@ export default function TournamentDetailPage() {
 
   const infoStats = [
     { icon: Users,    label: 'Players',   val: `${tournament.players.length}/${tournament.maxPlayers}` },
-    { icon: Zap,      label: 'Entry Fee', val: tournament.entryFee === 0 ? 'FREE' : `$${tournament.entryFee}` },
+    { icon: Zap,      label: 'Entry Fee', val: tournament.entryFee === 0 ? 'FREE' : `Rs.${tournament.entryFee}` },
     { icon: Calendar, label: 'Scheduled', val: new Date(tournament.scheduledAt).toLocaleDateString() },
     { icon: Trophy,   label: 'Spots Left',val: spotsLeft === 0 ? 'Full' : String(spotsLeft) },
   ]
@@ -187,7 +284,7 @@ export default function TournamentDetailPage() {
                 <div style={{ textAlign: 'right' }}>
                   <div className="kp-qs-label" style={{ marginBottom: 4 }}>Prize Pool</div>
                   <div className="kp-qs-value" style={{ fontSize: 'clamp(2rem, 3.5vw, 2.8rem)' }}>
-                    ${tournament.prizePool.toLocaleString()}
+                    Rs.{tournament.prizePool.toLocaleString()}
                   </div>
                 </div>
               </div>
@@ -242,7 +339,7 @@ export default function TournamentDetailPage() {
                       {winner.username}
                     </div>
                     <div style={{ fontSize: 13, color: '#b45309', marginTop: 4 }}>
-                      Won ${tournament.prizePool.toLocaleString()}
+                      Won Rs.{tournament.prizePool.toLocaleString()}
                     </div>
                   </div>
                 </div>
@@ -283,16 +380,21 @@ export default function TournamentDetailPage() {
 
                         {/* Badges */}
                         <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                          {p.paymentScreenshot && (
+                            <span className="ad-status-pill" style={{ padding: '2px 7px', background: 'rgba(251, 146, 60, 0.1)', border: '1px solid rgba(251, 146, 60, 0.2)', color: '#ea580c' }}>
+                              $ Pending
+                            </span>
+                          )}
+                          {p.paymentApproved && (
+                            <span className="ad-status-pill ad-status-confirmed" style={{ padding: '2px 7px' }}>
+                              <CheckCircle size={10} style={{ display: 'inline', marginRight: 3 }} />
+                              Paid
+                            </span>
+                          )}
                           {p.screenshotURL && (
                             <span className="ad-status-pill ad-status-confirmed" style={{ padding: '2px 7px' }}>
                               <ImageIcon size={10} style={{ display: 'inline', marginRight: 3 }} />
                               SS
-                            </span>
-                          )}
-                          {p.paid && (
-                            <span className="ad-status-pill ad-status-confirmed" style={{ padding: '2px 7px' }}>
-                              <CheckCircle size={10} style={{ display: 'inline', marginRight: 3 }} />
-                              Paid
                             </span>
                           )}
                           {isWinner && (
@@ -363,18 +465,77 @@ export default function TournamentDetailPage() {
                         className="input-clean"
                       />
                     </div>
+                    
+                    {/* Payment screenshot upload */}
+                    {tournament.entryFee > 0 && (
+                      <div className="hd-field">
+                        <label className="hd-label">Payment Screenshot *</label>
+                        <div className="hd-upload-wrap">
+                          <input
+                            type="file"
+                            accept="image/*"
+                            onChange={handleFileUpload}
+                            className="hd-upload-input"
+                          />
+                          <div className={`hd-upload-zone${screenshotPreview ? ' hd-upload-zone-filled' : ''}`}>
+                            {transmitting ? (
+                              <Loader2 size={28} style={{ color: 'var(--kp-ink2)', animation: 'ringSpin 0.8s linear infinite' }} />
+                            ) : screenshotPreview ? (
+                              <div style={{ textAlign: 'center' }}>
+                                <CheckCircle size={24} style={{ color: '#10b981', marginBottom: 8 }} />
+                                <p className="hd-upload-text" style={{ color: '#10b981' }}>Screenshot uploaded</p>
+                              </div>
+                            ) : (
+                              <div className="hd-upload-placeholder">
+                                <Upload size={24} className="hd-upload-icon" />
+                                <p className="hd-upload-text">Upload payment screenshot</p>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                        {screenshotPreview && (
+                          <div style={{ marginTop: 8, borderRadius: 8, overflow: 'hidden', border: '1px solid var(--kp-border)' }}>
+                            <img src={screenshotPreview} alt="Payment screenshot" style={{ width: '100%', display: 'block' }} />
+                          </div>
+                        )}
+                      </div>
+                    )}
+                    
                     <button
                       onClick={handleJoin}
-                      disabled={joining}
+                      disabled={joining || (tournament.entryFee > 0 && !screenshotBase64)}
                       className="btn-primary hd-submit-btn"
-                      style={{ opacity: joining ? 0.6 : 1 }}
+                      style={{ opacity: (joining || (tournament.entryFee > 0 && !screenshotBase64)) ? 0.6 : 1 }}
                     >
                       {joining
                         ? <Loader2 size={14} style={{ animation: 'ringSpin 0.8s linear infinite' }} />
-                        : `Join — ${tournament.entryFee === 0 ? 'Free' : `$${tournament.entryFee}`}`
+                        : `Join — ${tournament.entryFee === 0 ? 'Free' : `Rs.${tournament.entryFee}`}`
                       }
                     </button>
+                    {tournament.entryFee > 0 && !screenshotBase64 && (
+                      <p style={{ fontSize: 11, color: '#ef4444', marginTop: 8, textAlign: 'center' }}>
+                        Payment screenshot is required to join
+                      </p>
+                    )}
                   </div>
+                )}
+
+                  {/* Room details button - only show when payment is approved */}
+                {isPlayer && hasJoined && myEntry?.paymentApproved && (
+                  <button
+                    onClick={() => setShowRoomPopup(true)}
+                    className="btn-primary hd-submit-btn"
+                    style={{ 
+                      justifyContent: 'center',
+                      background: '#000',
+                      color: '#fff',
+                      border: '1px solid #000',
+                      marginBottom: 14
+                    }}
+                  >
+                    <Gamepad2 size={14} style={{ marginRight: 6 }} />
+                    View Room Details
+                  </button>
                 )}
 
                 {/* ── Screenshot upload ─────────────────────────────────── */}
@@ -426,34 +587,15 @@ export default function TournamentDetailPage() {
                       </div>
                     )}
                   </div>
+                
                 )}
 
-                {/* ── Joined + upcoming status ──────────────────────────── */}
-                {isPlayer && hasJoined && tournament.status === 'upcoming' && (
-                  <div
-                    style={{
-                      padding: '20px 18px', borderRadius: 12, textAlign: 'center',
-                      background: myEntry?.paid ? 'rgba(16,185,129,0.06)' : 'var(--kp-sl)',
-                      border: `1px solid ${myEntry?.paid ? 'rgba(16,185,129,0.2)' : 'var(--kp-border)'}`,
-                    }}
-                  >
-                    <div style={{ width: 44, height: 44, borderRadius: 11, margin: '0 auto 14px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: myEntry?.paid ? 'rgba(16,185,129,0.1)' : 'var(--kp-silver)', border: `1px solid ${myEntry?.paid ? 'rgba(16,185,129,0.2)' : 'var(--kp-border)'}` }}>
-                      <CheckCircle size={20} style={{ color: myEntry?.paid ? '#10b981' : 'var(--kp-ink3)' }} />
-                    </div>
-                    <div style={{ fontFamily: 'var(--kp-fd)', fontWeight: 700, fontSize: 15, color: 'var(--kp-ink)', marginBottom: 6 }}>
-                      {myEntry?.paid ? 'Payment Confirmed' : 'Pending Payment'}
-                    </div>
-                    <p style={{ fontSize: 12, color: 'var(--kp-ink3)', lineHeight: 1.65 }}>
-                      {myEntry?.paid
-                        ? "You're all set! Wait for the tournament to start."
-                        : 'Pay via QR code and wait for host confirmation.'}
-                    </p>
-                  </div>
-                )}
+              
+
 
                 {/* ── Host manage link ──────────────────────────────────── */}
                 {isHost && host?._id === user?._id && (
-                  <Link href="/dashboard/host" className="btn-primary hd-submit-btn" style={{ justifyContent: 'center' }}>
+                  <Link href={`/tournaments/${id}/manage`} className="btn-primary hd-submit-btn" style={{ justifyContent: 'center' }}>
                     Manage Tournament
                   </Link>
                 )}
@@ -480,6 +622,192 @@ export default function TournamentDetailPage() {
           </div>
         </div>
       </div>
+
+      {/* ── Game Room Access Popup ────────────────────────────────────────── */}
+      {showRoomPopup && (
+        <div 
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(0, 0, 0, 0.5)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 9999,
+            padding: 20
+          }}
+          onClick={() => setShowRoomPopup(false)}
+        >
+          <div 
+            className="card-clean"
+            style={{
+              background: 'white',
+              border: '2px solid #000',
+              borderRadius: 12,
+              padding: 32,
+              maxWidth: 400,
+              width: '100%',
+              position: 'relative'
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Close button */}
+            <button
+              onClick={() => setShowRoomPopup(false)}
+              style={{
+                position: 'absolute',
+                top: 16,
+                right: 16,
+                background: 'transparent',
+                border: 'none',
+                cursor: 'pointer',
+                padding: 4
+              }}
+            >
+              <XCircle size={20} style={{ color: '#000' }} />
+            </button>
+
+            {/* Header */}
+            <div style={{ 
+              fontSize: 20, 
+              fontWeight: 700, 
+              color: '#000', 
+              marginBottom: 24, 
+              textAlign: 'center',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 8
+            }}>
+              <Gamepad2 size={24} />
+              Game Room Access
+            </div>
+            
+            <div style={{ textAlign: 'left' }}>
+              {/* Room ID */}
+              <div style={{ marginBottom: 20 }}>
+                <div style={{ 
+                  fontSize: 14, 
+                  fontWeight: 600,
+                  color: '#000', 
+                  marginBottom: 8
+                }}>
+                  Room ID
+                </div>
+                <div style={{ 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  gap: 8,
+                  padding: '12px',
+                  background: '#f5f5f5',
+                  border: '1px solid #000',
+                  fontFamily: 'monospace',
+                  fontSize: 16,
+                  color: '#000',
+                  borderRadius: 8
+                }}>
+                  <span style={{ flex: 1 }}>{tournament.roomId}</span>
+                  <button
+                    onClick={() => tournament.roomId && navigator.clipboard.writeText(tournament.roomId)}
+                    style={{
+                      padding: '6px 10px',
+                      background: '#000',
+                      color: '#fff',
+                      border: '1px solid #000',
+                      fontSize: 12,
+                      cursor: 'pointer',
+                      borderRadius: 6
+                    }}
+                    title="Copy Room ID"
+                  >
+                    <Copy size={14} />
+                  </button>
+                </div>
+              </div>
+              
+              {/* Room Password */}
+              {(tournament.roomPassword || true) && (
+                <div>
+                  <div style={{ 
+                    fontSize: 14, 
+                    fontWeight: 600,
+                    color: '#000', 
+                    marginBottom: 8
+                  }}>
+                    Room Password
+                  </div>
+                  <div style={{ 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    gap: 8,
+                    padding: '12px',
+                    background: '#f5f5f5',
+                    border: '1px solid #000',
+                    fontFamily: 'monospace',
+                    fontSize: 16,
+                    color: '#000',
+                    borderRadius: 8
+                  }}>
+                    <span style={{ flex: 1 }}>
+                      {showPassword ? (tournament.roomPassword || '') : maskPassword(tournament.roomPassword || '')}
+                    </span>
+                    <button
+                      onClick={() => setShowPassword(!showPassword)}
+                      style={{
+                        padding: '6px 10px',
+                        background: '#000',
+                        color: '#fff',
+                        border: '1px solid #000',
+                        fontSize: 12,
+                        cursor: 'pointer',
+                        borderRadius: 6
+                      }}
+                      title={showPassword ? 'Hide password' : 'Show password'}
+                    >
+                      {showPassword ? <EyeOff size={14} /> : <Eye size={14} />}
+                    </button>
+                    <button
+                      onClick={handleCopyPassword}
+                      style={{
+                        padding: '6px 10px',
+                        background: copySuccess ? '#333' : '#000',
+                        color: '#fff',
+                        border: '1px solid #000',
+                        fontSize: 12,
+                        cursor: 'pointer',
+                        borderRadius: 6
+                      }}
+                      title="Copy password"
+                    >
+                      <Copy size={14} />
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Instructions */}
+            <div style={{ 
+              marginTop: 24, 
+              padding: 16, 
+              background: '#f9f9f9', 
+              border: '1px solid #ddd',
+              borderRadius: 8,
+              fontSize: 12,
+              color: '#666',
+              lineHeight: 1.6
+            }}>
+              <div style={{ fontWeight: 600, marginBottom: 8, color: '#000' }}>How to join:</div>
+              <div>1. Copy the Room ID and Password above</div>
+              <div>2. Open your game and find the tournament/room section</div>
+              <div>3. Enter the Room ID and Password to join</div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

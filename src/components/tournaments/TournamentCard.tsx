@@ -1,7 +1,7 @@
 'use client'
 import Link from 'next/link'
 import { ITournament } from '@/types'
-import { Users, Trophy, Calendar, ArrowRight, Sword } from 'lucide-react'
+import { Users, Trophy, Calendar, ArrowRight, Sword, Key, Eye } from 'lucide-react'
 
 interface Props { tournament: ITournament }
 
@@ -103,6 +103,25 @@ export default function TournamentCard({ tournament }: Props) {
           {new Date(tournament.scheduledAt).toLocaleDateString()}
         </div>
 
+        {/* Room Details Indicator */}
+        {tournament.roomId && (
+          <div
+            style={{
+              display: 'flex', alignItems: 'center', gap: 6,
+              fontSize: 11, color: '#10b981',
+              marginBottom: 12,
+              padding: '6px 10px',
+              background: 'rgba(16,185,129,0.08)',
+              border: '1px solid rgba(16,185,129,0.2)',
+              borderRadius: 6,
+            }}
+          >
+            <Key size={12} style={{ flexShrink: 0 }} />
+            <span style={{ fontWeight: 600 }}>Room Details Available</span>
+            <Eye size={11} style={{ marginLeft: 'auto', flexShrink: 0 }} />
+          </div>
+        )}
+
         {/* Prize + Fee */}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 14 }}>
           <div>
@@ -121,7 +140,7 @@ export default function TournamentCard({ tournament }: Props) {
                 fontSize: 17, color: 'var(--kp-ink)', letterSpacing: '-0.02em',
               }}
             >
-              ${tournament.prizePool.toLocaleString()}
+              Rs.{tournament.prizePool.toLocaleString()}
             </div>
           </div>
           <div>
@@ -139,7 +158,7 @@ export default function TournamentCard({ tournament }: Props) {
                 fontSize: 17, color: 'var(--kp-ink)', letterSpacing: '-0.02em',
               }}
             >
-              {tournament.entryFee === 0 ? 'FREE' : `$${tournament.entryFee}`}
+              {tournament.entryFee === 0 ? 'FREE' : `Rs.${tournament.entryFee}`}
             </div>
           </div>
         </div>

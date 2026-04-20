@@ -12,7 +12,7 @@ export default function NotFound() {
         </div>
         <h1 className="text-3xl font-display font-bold text-white mb-3">Page Not Found</h1>
         <p className="text-gray-400 font-body mb-8 max-w-sm mx-auto">
-          The arena you're looking for doesn't exist or has been moved.
+          The arena you&apos;re looking for doesn&apos;t exist or has been moved.
         </p>
         <div className="flex items-center justify-center gap-3">
           <Link href="/" className="btn-primary">Back to Home</Link>

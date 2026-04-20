@@ -183,6 +183,9 @@ export default function Navbar() {
               <Link href={dashboardPath} className="kp-nav-mobile-link" onClick={() => setOpen(false)}>
                 Dashboard
               </Link>
+              <Link href="/profile" className="kp-nav-mobile-link" onClick={() => setOpen(false)}>
+                Profile
+              </Link>
               <div className="kp-nav-mobile-divider" />
               <div className="kp-nav-mobile-user">
                 <div className="kp-nav-avatar kp-nav-avatar-lg">

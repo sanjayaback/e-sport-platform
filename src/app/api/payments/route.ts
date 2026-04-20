@@ -18,25 +18,25 @@ export async function GET(req: NextRequest) {
     const uRows = await users.getRows()
     const tRows = await tournaments.getRows()
 
-    let results = pRows.map(r => cleanRow(r))
+    let results = pRows.map((r: any) => cleanRow(r))
 
     // filter logic
     if (payload.role !== 'admin') {
-      results = results.filter(p => p.playerId === payload.userId)
+      results = results.filter((p: any) => p.playerId === payload.userId)
     }
     if (tournamentId) {
-      results = results.filter(p => p.tournamentId === tournamentId)
+      results = results.filter((p: any) => p.tournamentId === tournamentId)
     }
 
     // sort
-    results.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+    results.sort((a: any, b: any) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
 
     // populate
-    results = results.map(p => {
-      const u = uRows.find(u => u.get('_id') === String(p.playerId))
+    results = results.map((p: any) => {
+      const u = uRows.find((u: any) => u.get('_id') === String(p.playerId))
       if (u) p.playerId = { _id: u.get('_id'), username: u.get('username'), email: u.get('email') }
       
-      const t = tRows.find(t => t.get('_id') === String(p.tournamentId))
+      const t = tRows.find((t: any) => String(t.get('_id')) === p.tournamentId)
       if (t) p.tournamentId = { _id: t.get('_id'), title: t.get('title'), gameName: t.get('gameName') }
       
       return p
@@ -59,7 +59,7 @@ export async function POST(req: NextRequest) {
     
     const { payments, users, notifications, tournaments } = await getTables()
     const uRows = await users.getRows()
-    const user = uRows.find(u => u.get('_id') === payload.userId)
+    const user = uRows.find((u: any) => String(u.get('_id')) === payload.userId)
     if (!user) return notFoundResponse('User not found')
 
     const currentBalance = Number(user.get('walletBalance') || 0)

@@ -11,6 +11,7 @@ import {
   Crown, Loader2, Play, Eye, X, Image as ImageIcon,
   ChevronDown, DollarSign, Upload,
 } from 'lucide-react';
+import QRCodeUpload from '@/components/QRCodeUpload';
 import Link from 'next/link';
 import {
   Chart as ChartJS, CategoryScale, LinearScale, BarElement,
@@ -21,22 +22,6 @@ import { Bar, Doughnut } from 'react-chartjs-2';
 ChartJS.register(CategoryScale, LinearScale, BarElement, ArcElement, Tooltip, Legend, Title);
 
 // ─── HELPERS ──────────────────────────────────────────────────────────────────
-
-async function resizeImage(base64Str: string, maxWidth = 300, maxHeight = 300): Promise<string> {
-  return new Promise(resolve => {
-    const img = new Image();
-    img.src = base64Str;
-    img.onload = () => {
-      const canvas = document.createElement('canvas');
-      let w = img.width, h = img.height;
-      if (w > h) { if (w > maxWidth)  { h *= maxWidth / w;  w = maxWidth; } }
-      else        { if (h > maxHeight) { w *= maxHeight / h; h = maxHeight; } }
-      canvas.width = w; canvas.height = h;
-      canvas.getContext('2d')?.drawImage(img, 0, 0, w, h);
-      resolve(canvas.toDataURL('image/jpeg', 0.7));
-    };
-  });
-}
 
 const CHART_OPTS_DOUGHNUT = {
   responsive: true, maintainAspectRatio: false,
@@ -57,57 +42,6 @@ const CHART_OPTS_BAR = {
   },
 };
 
-// ─── FINANCIAL MODAL ──────────────────────────────────────────────────────────
-
-function FinancialModal({
-  type, onClose, onRefresh,
-}: { type: 'deposit' | 'withdraw'; onClose: () => void; onRefresh: () => void }) {
-  const [amount, setAmount]   = useState('');
-  const [loading, setLoading] = useState(false);
-  const [error, setError]     = useState('');
-
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!amount || Number(amount) <= 0) return setError('Enter a valid amount');
-    setError(''); setLoading(true);
-    try {
-      await axios.post('/api/payments', { type, amount: Number(amount) });
-      onRefresh(); onClose();
-    } catch (err: any) {
-      setError(err.response?.data?.error || 'Transaction failed');
-    } finally { setLoading(false); }
-  }
-
-  return (
-    <div className="hd-modal-backdrop">
-      <div className="card-clean hd-modal-box animate-in">
-        <div className="hd-modal-header">
-          <h3 className="hd-modal-title" style={{ textTransform: 'capitalize' }}>{type}</h3>
-          <button onClick={onClose} className="hd-modal-close"><X size={16} /></button>
-        </div>
-
-        {error && <div className="hd-error-banner">{error}</div>}
-
-        <form onSubmit={handleSubmit} className="hd-form">
-          <div className="hd-field">
-            <label className="hd-label">Amount ($)</label>
-            <div className="hd-input-wrap">
-              <DollarSign size={15} className="hd-input-icon" />
-              <input
-                type="number" value={amount} onChange={e => setAmount(e.target.value)}
-                placeholder="0.00" step="0.01" required
-                className="input-clean hd-input-padded"
-              />
-            </div>
-          </div>
-          <button type="submit" disabled={loading} className="btn-primary hd-submit-btn">
-            {loading ? 'Processing…' : `${type === 'deposit' ? 'Deposit' : 'Withdraw'} Funds`}
-          </button>
-        </form>
-      </div>
-    </div>
-  );
-}
 
 // ─── CREATE TOURNAMENT MODAL ──────────────────────────────────────────────────
 
@@ -115,29 +49,24 @@ function CreateTournamentModal({ onClose, onCreated }: { onClose: () => void; on
   const [form, setForm] = useState({
     title: '', description: '', gameName: 'PUBG', entryFee: '0',
     maxPlayers: '16', prizePool: '100', hostQRCodeURL: '',
+    roomId: '', roomPassword: '',
     scheduledAt: new Date(Date.now() + 86400000).toISOString().slice(0, 16),
   });
   const [loading, setLoading] = useState(false);
   const [error, setError]     = useState('');
-  const [preview, setPreview] = useState('');
 
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setError(''); setLoading(true);
-    const reader = new FileReader();
-    reader.onloadend = async () => {
-      const optimized = await resizeImage(reader.result as string, 300, 300);
-      setForm(f => ({ ...f, hostQRCodeURL: optimized }));
-      setPreview(optimized); setLoading(false);
-    };
-    reader.readAsDataURL(file);
+  const handleQRUploadSuccess = (image: any) => {
+    setForm(f => ({ ...f, hostQRCodeURL: image.secure_url }));
+  };
+
+  const handleQRUploadError = (errorMessage: string) => {
+    setError(errorMessage);
   };
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault(); setError(''); setLoading(true);
     try {
-      await axios.post('/api/tournaments', {
+      const response = await axios.post('/api/tournaments', {
         ...form,
         entryFee:    Number(form.entryFee),
         maxPlayers:  Number(form.maxPlayers),
@@ -195,33 +124,34 @@ function CreateTournamentModal({ onClose, onCreated }: { onClose: () => void; on
             <div className="hd-form-col">
               <div className="hd-field">
                 <label className="hd-label">Payment QR Code</label>
-                <div className="hd-upload-wrap">
-                  <input type="file" accept="image/*" onChange={handleFileUpload} className="hd-upload-input" />
-                  <div className={`hd-upload-zone ${preview ? 'hd-upload-zone-filled' : ''}`}>
-                    {preview ? (
-                      <div className="hd-upload-preview">
-                        <img src={preview} alt="QR" className="hd-upload-img" />
-                        <span className="hd-upload-done"><CheckCircle size={12} /> Uploaded</span>
-                      </div>
-                    ) : (
-                      <div className="hd-upload-placeholder">
-                        <Upload size={20} className="hd-upload-icon" />
-                        <p className="hd-upload-text">Upload QR code</p>
-                      </div>
-                    )}
-                  </div>
-                </div>
+                <QRCodeUpload
+                  onUploadSuccess={handleQRUploadSuccess}
+                  onUploadError={handleQRUploadError}
+                  className="hd-upload-wrap"
+                />
               </div>
               <div className="hd-two-col">
                 <div className="hd-field">
-                  <label className="hd-label">Entry Fee ($)</label>
+                  <label className="hd-label">Entry Fee (Rs.)</label>
                   <input type="number" min="0" step="0.01" value={form.entryFee}
                     onChange={e => setForm(f => ({ ...f, entryFee: e.target.value }))} required className="input-clean" />
                 </div>
                 <div className="hd-field">
-                  <label className="hd-label">Prize Pool ($)</label>
+                  <label className="hd-label">Prize Pool (Rs.)</label>
                   <input type="number" min="0" step="0.01" value={form.prizePool}
                     onChange={e => setForm(f => ({ ...f, prizePool: e.target.value }))} required className="input-clean" />
+                </div>
+              </div>
+              <div className="hd-two-col">
+                <div className="hd-field">
+                  <label className="hd-label">Room ID *</label>
+                  <input value={form.roomId} onChange={e => setForm(f => ({ ...f, roomId: e.target.value }))}
+                    required className="input-clean" placeholder="Enter room ID" />
+                </div>
+                <div className="hd-field">
+                  <label className="hd-label">Room Password *</label>
+                  <input type="password" value={form.roomPassword} onChange={e => setForm(f => ({ ...f, roomPassword: e.target.value }))}
+                    required className="input-clean" placeholder="Enter room password" />
                 </div>
               </div>
               <div className="hd-field">
@@ -252,6 +182,8 @@ function TournamentRow({ t, onRefresh }: { t: ITournament; onRefresh: () => void
   const [updatingStatus, setUpdatingStatus] = useState(false);
   const [winnerId, setWinnerId]         = useState('');
   const [msg, setMsg]                   = useState('');
+  const [showImageModal, setShowImageModal] = useState(false);
+  const [selectedImage, setSelectedImage]   = useState('');
 
   async function updateStatus(status: string) {
     setUpdatingStatus(true);
@@ -289,13 +221,13 @@ function TournamentRow({ t, onRefresh }: { t: ITournament; onRefresh: () => void
           </div>
           <div className="hd-row-sub">
             <span><Users size={12} /> {t.players.length}/{t.maxPlayers}</span>
-            <span>Prize: ${t.prizePool.toLocaleString()}</span>
+            <span>Prize: Rs.{t.prizePool.toLocaleString()}</span>
             <span>{t.gameName}</span>
           </div>
         </div>
 
         <div className="hd-row-actions" onClick={e => e.stopPropagation()}>
-          <Link href={`/tournaments/${t._id}`} className="ad-icon-btn" title="View tournament">
+          <Link href={`/tournaments/${t._id}`} className="ad-icon-btn" title="View tournament details" style={{ cursor: 'pointer' }}>
             <Eye size={14} />
           </Link>
         </div>
@@ -361,18 +293,63 @@ function TournamentRow({ t, onRefresh }: { t: ITournament; onRefresh: () => void
                         <div className="hd-player-id">ID: {p.gameID}</div>
                       </div>
                       <div className="hd-player-actions">
+                        {p.paymentScreenshot && (
+                          <button 
+                            onClick={() => {
+                              const screenshot = p.paymentScreenshot || '';
+                              // Handle both Cloudinary URLs and legacy base64 data
+                              const imageUrl = screenshot.startsWith('http') 
+                                ? screenshot 
+                                : screenshot.startsWith('data:') 
+                                  ? screenshot 
+                                  : `data:image/jpeg;base64,${screenshot}`;
+                              window.open(imageUrl, '_blank');
+                            }}
+                            className="hd-screenshot-btn" 
+                            title="View payment screenshot"
+                            style={{
+                              background: 'rgba(251, 146, 60, 0.1)',
+                              border: '1px solid rgba(251, 146, 60, 0.2)',
+                              color: '#ea580c',
+                              borderRadius: 6,
+                              padding: '4px 8px',
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 4,
+                              fontSize: 11,
+                              fontWeight: 600,
+                              transition: 'all 0.2s'
+                            }}
+                            onMouseEnter={(e) => {
+                              e.currentTarget.style.background = 'rgba(251, 146, 60, 0.15)';
+                              e.currentTarget.style.transform = 'scale(1.05)';
+                            }}
+                            onMouseLeave={(e) => {
+                              e.currentTarget.style.background = 'rgba(251, 146, 60, 0.1)';
+                              e.currentTarget.style.transform = 'scale(1)';
+                            }}
+                          >
+                            <DollarSign size={13} />
+                            Payment
+                          </button>
+                        )}
                         {p.screenshotURL && (
-                          <a href={p.screenshotURL} target="_blank" rel="noreferrer" className="hd-screenshot-btn" title="View screenshot">
+                          <a href={p.screenshotURL} target="_blank" rel="noreferrer" className="hd-screenshot-btn" title="View game screenshot">
                             <ImageIcon size={13} />
                           </a>
                         )}
-                        {p.paid ? (
-                          <span className="hd-paid-badge"><CheckCircle size={11} /> Paid</span>
-                        ) : (
+                        {p.paymentApproved ? (
+                          <span className="hd-paid-badge"><CheckCircle size={11} /> Payment Approved</span>
+                        ) : p.paymentScreenshot ? (
                           <div className="hd-approve-row">
-                            <button onClick={() => approvePlayer(pid, true)} className="hd-approve-btn">Approve</button>
+                            <button onClick={() => approvePlayer(pid, true)} className="hd-approve-btn">Approve Payment</button>
                             <button onClick={() => approvePlayer(pid, false)} className="hd-reject-btn">Reject</button>
                           </div>
+                        ) : p.paid ? (
+                          <span className="hd-paid-badge"><CheckCircle size={11} /> Paid</span>
+                        ) : (
+                          <span className="hd-pending-badge">Pending Payment</span>
                         )}
                       </div>
                     </div>
@@ -393,7 +370,7 @@ function TournamentRow({ t, onRefresh }: { t: ITournament; onRefresh: () => void
 type Tab = 'tournaments' | 'analytics';
 
 export default function HostDashboard() {
-  const { user, loading: authLoading } = useAuth();
+  const { user, loading: authLoading, refreshUser } = useAuth();
   const router = useRouter();
 
   const [tournaments,   setTournaments]   = useState<ITournament[]>([]);
@@ -401,30 +378,19 @@ export default function HostDashboard() {
   const [loading,       setLoading]       = useState(true);
   const [showCreate,    setShowCreate]    = useState(false);
   const [activeTab,     setActiveTab]     = useState<Tab>('tournaments');
-  const [subscribing,   setSubscribing]   = useState(false);
-  const [subError,      setSubError]      = useState('');
-  const [financeModal,  setFinanceModal]  = useState<'deposit' | 'withdraw' | null>(null);
 
   useEffect(() => {
     if (!authLoading && (!user || (user.role !== 'host' && user.role !== 'admin'))) router.push('/');
   }, [user, authLoading, router]);
 
-  async function handleSubscribe() {
-    setSubscribing(true); setSubError('');
-    try {
-      await axios.post('/api/host/subscribe');
-      window.location.reload();
-    } catch (err: any) {
-      setSubError(err.response?.data?.error || 'Failed to subscribe');
-    } finally { setSubscribing(false); }
-  }
-
+  
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
+      // Fetch tournaments with timeout
       const [tRes, aRes] = await Promise.all([
-        axios.get('/api/tournaments?limit=50'),
-        axios.get('/api/analytics'),
+        axios.get('/api/tournaments?limit=50', { timeout: 5000 }),
+        axios.get('/api/analytics', { timeout: 5000 }),
       ]);
       const all: ITournament[] = tRes.data.data.tournaments;
       const mine = user?.role === 'admin'
@@ -435,11 +401,32 @@ export default function HostDashboard() {
           });
       setTournaments(mine);
       setAnalytics(aRes.data.data);
-    } catch (e) { console.error(e); }
-    finally { setLoading(false); }
+    } catch (e) { 
+      console.error('Data fetch error:', e);
+      // Set default values on error
+      setTournaments([]);
+      setAnalytics(null);
+    } finally {
+      setLoading(false); 
+    }
   }, [user]);
 
   useEffect(() => { if (user) fetchData(); }, [user, fetchData]);
+
+  // Separate effect for refreshing user data
+  useEffect(() => {
+    if (user) {
+      const refreshInterval = setInterval(async () => {
+        try {
+          await refreshUser();
+        } catch (e) {
+          console.warn('User refresh failed:', e);
+        }
+      }, 60000); // Refresh every 60 seconds instead of 30
+
+      return () => clearInterval(refreshInterval);
+    }
+  }, [user, refreshUser]);
 
   if (authLoading || !user) return (
     <div className="ad-loading-guard"><div className="kp-spinner" /></div>
@@ -470,7 +457,7 @@ export default function HostDashboard() {
   const revenueChartData = {
     labels: analytics?.monthlyRevenue.map(m => m.month) || [],
     datasets: [{
-      label:           'Revenue ($)',
+      label:         'Revenue (Rs.)',
       data:            analytics?.monthlyRevenue.map(m => m.revenue) || [],
       backgroundColor: 'rgba(26,28,30,0.06)',
       borderColor:     '#1A1C1E',
@@ -482,18 +469,14 @@ export default function HostDashboard() {
     { label: 'Tournaments',   value: tournaments.length,            icon: Trophy    },
     { label: 'Active',        value: activeCount,                   icon: Play      },
     { label: 'Total Players', value: totalPlayers,                  icon: Users     },
-    { label: 'Prize Pool',    value: `$${totalPrize.toLocaleString()}`, icon: DollarSign },
+    // { label: 'Prize Pool',    value: `Rs.${totalPrize.toLocaleString()}`, icon: DollarSign },
   ];
 
-  const isSubscribed = user.isSubscribed || user.role === 'admin';
-
+  
   return (
     <div className="ad-page">
       {showCreate && (
         <CreateTournamentModal onClose={() => setShowCreate(false)} onCreated={fetchData} />
-      )}
-      {financeModal && (
-        <FinancialModal type={financeModal} onClose={() => setFinanceModal(null)} onRefresh={fetchData} />
       )}
 
       <div className="kp-wrap ad-inner">
@@ -509,44 +492,31 @@ export default function HostDashboard() {
           </div>
           <button
             onClick={() => setShowCreate(true)}
-            disabled={!isSubscribed}
             className="btn-primary ad-export-btn"
           >
             <Plus size={15} /> Create Tournament
           </button>
         </div>
 
-        {/* ── Subscription banner ────────────────────────────────────────── */}
-        {!isSubscribed && (
-          <div className="card-clean hd-sub-banner animate-in-d1">
-            <div className="hd-sub-left">
-              <div className="hd-sub-title">
-                <Crown size={16} className="hd-sub-crown" />
-                Host Subscription Required
-              </div>
-              <p className="hd-sub-desc">
-                Subscribe to create and manage tournaments.
-                $10 will be deducted from your wallet.
-              </p>
-              {subError && <div className="hd-error-banner" style={{ marginTop: 8 }}>{subError}</div>}
+        {/* ── Wallet Information Banner ────────────────────────────────────────── */}
+        <div className="card-clean hd-sub-banner animate-in-d1">
+          <div className="hd-sub-left">
+            <div className="hd-sub-title">
+              <DollarSign size={16} className="hd-sub-crown" />
+              Wallet-Based Tournament Creation
             </div>
-            <div className="hd-sub-right">
-              <div className="hd-sub-balance">
-                Wallet:{' '}
-                <strong>${user.walletBalance}</strong>
-                <button onClick={() => setFinanceModal('deposit')} className="hd-add-funds">
-                  Add Funds
-                </button>
-              </div>
-              <button onClick={handleSubscribe} disabled={subscribing} className="btn-primary">
-                {subscribing
-                  ? <><Loader2 size={14} className="hd-spin" /> Subscribing…</>
-                  : <><DollarSign size={14} /> Subscribe ($10)</>
-                }
-              </button>
+            <p className="hd-sub-desc">
+              Create tournaments by funding prize pools from your wallet.
+              Each tournament costs <strong>Rs.50 host fee</strong> + prize pool amount.
+            </p>
+          </div>
+          <div className="hd-sub-right">
+            <div className="hd-sub-balance">
+              Wallet Balance:{' '}
+              <strong>Rs.{user?.walletBalance || 0}</strong>
             </div>
           </div>
-        )}
+        </div>
 
         {/* ── Stat cards ────────────────────────────────────────────────── */}
         <div className="ad-stat-grid animate-in-d1">

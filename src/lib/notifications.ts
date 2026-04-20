@@ -20,7 +20,6 @@ export async function sendEmail(to: string, subject: string, html: string): Prom
       html,
     })
   } catch (err) {
-    console.error('Email send error:', err)
   }
 }
 
@@ -34,7 +33,6 @@ export async function sendDiscordNotification(message: string, embeds?: object[]
       body: JSON.stringify({ content: message, embeds }),
     })
   } catch (err) {
-    console.error('Discord webhook error:', err)
   }
 }
 

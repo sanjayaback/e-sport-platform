@@ -17,23 +17,23 @@ export async function GET(req: NextRequest) {
     const rows = await tournaments.getRows()
     const userRows = await users.getRows()
 
-    let results = rows.map(r => cleanRow(r))
+    let results = rows.map((r: any) => cleanRow(r))
     
     // Parse JSON fields
-    results = results.map(t => {
+    results = results.map((t: any) => {
       try { t.players = JSON.parse(t.players || '[]') } catch { t.players = [] }
       return t
     })
 
     if (game && game !== 'All') {
-      results = results.filter(t => t.gameName === game)
+      results = results.filter((t: any) => t.gameName === game)
     }
     if (status) {
-      results = results.filter(t => t.status === status)
+      results = results.filter((t: any) => t.status === status)
     }
     
     // Sort by createdAt descending
-    results.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+    results.sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
     
     const total = results.length
     const pages = Math.ceil(total / limit) || 1
@@ -44,11 +44,11 @@ export async function GET(req: NextRequest) {
     results = results.slice(startIndex, startIndex + limit)
     
     // Populate host info
-    results = results.map(t => {
+    results = results.map((t: any) => {
       const hStr = String(t.hostId)
-      const u = userRows.find(u => String(u.get('_id')) === hStr)
-      if (u) {
-        t.hostId = { _id: u.get('_id'), username: u.get('username') }
+      const host = userRows.find((u: any) => String(u.get('_id')) === String(t.hostId))
+      if (host) {
+        t.hostId = { _id: host.get('_id'), username: host.get('username') }
       }
       return t
     })
@@ -69,18 +69,48 @@ export async function POST(req: NextRequest) {
 
     const { tournaments, users } = await getTables()
     
-    if (payload.role !== 'admin') {
-      const uRows = await users.getRows()
-      const hostUser = uRows.find(u => String(u.get('_id')) === payload.userId)
-      if (!hostUser || hostUser.get('isSubscribed') !== 'true') {
-        return errorResponse('Host subscription required to create tournaments', 403)
-      }
+    // Check user wallet balance for prize pool
+    const uRows = await users.getRows()
+    const userRow = uRows.find((u: any) => String(u.get('_id')) === payload.userId)
+    if (!userRow) {
+      return errorResponse('User not found', 404)
     }
+    
+    const userWalletBalance = parseFloat(userRow.get('walletBalance') || '0')
 
     const body = await req.json()
 
     const { value, error } = validate(tournamentSchema, body) as { value: any, error: any }
     if (error) return errorResponse(error)
+
+    // Add Rs.50 host fee per tournament
+    const hostFee = 50;
+    const totalRequired = value.prizePool + hostFee;
+    
+    // Check if user has sufficient wallet balance for prize pool + host fee
+    if (userWalletBalance < totalRequired) {
+      return errorResponse(`Insufficient wallet balance. Required: Rs.${totalRequired} (Prize Pool: Rs.${value.prizePool} + Host Fee: Rs.${hostFee}), Available: Rs.${userWalletBalance}`, 400)
+    }
+
+    // Deduct prize pool + host fee from user wallet
+    const updatedWalletBalance = userWalletBalance - totalRequired
+    
+    // Update user wallet balance
+    userRow.set('walletBalance', updatedWalletBalance)
+    await userRow.save()
+    
+    // Prepare payment record for tournament creation
+    const { payments } = await getTables()
+    const paymentRecord = {
+      _id: generateId(),
+      playerId: payload.userId,
+      tournamentId: '', // Will be set after tournament creation
+      amount: totalRequired,
+      status: 'completed',
+      type: 'payout',
+      timestamp: new Date().toISOString(),
+      description: `Tournament creation: ${value.title} (Prize Pool: Rs.${value.prizePool} + Host Fee: Rs.${hostFee})`
+    }
 
     const newTournament = {
       _id: generateId(),
@@ -94,15 +124,22 @@ export async function POST(req: NextRequest) {
       status: 'upcoming',
       players: '[]',
       hostQRCodeURL: value.hostQRCodeURL || '',
+      roomId: value.roomId || '',
+      roomPassword: value.roomPassword || '',
       scheduledAt: value.scheduledAt,
       createdAt: new Date().toISOString()
     }
 
     await tournaments.addRow(newTournament)
+    
+    // Update payment record with tournament ID
+    paymentRecord.tournamentId = newTournament._id
+    await payments.addRow(paymentRecord)
 
-    return successResponse({ tournament: newTournament }, 201)
+    return successResponse({ tournament: newTournament, newBalance: updatedWalletBalance }, 201)
   } catch (err) {
     console.error('Create tournament error:', err)
+    console.error('Error stack:', err instanceof Error ? err.stack : 'No stack trace')
     return errorResponse('Failed to create tournament', 500)
   }
 }

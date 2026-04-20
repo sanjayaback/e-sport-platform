@@ -1,19 +1,23 @@
 export const dynamic = 'force-dynamic'
 import { NextRequest } from 'next/server'
-import { getTables, cleanRow } from '@/lib/db'
+import { getTablesCached, invalidateCache } from '@/lib/db-cache'
+import { cleanRow, generateId } from '@/lib/db'
 import { getUserFromHeader } from '@/lib/jwt'
 import { validate, tournamentUpdateSchema } from '@/lib/validation'
 import { successResponse, errorResponse, unauthorizedResponse, forbiddenResponse, notFoundResponse } from '@/lib/api'
 import { notifyWinnerSelected } from '@/lib/notifications'
-import { generateId } from '@/lib/db'
 
-export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const { tournaments, users } = await getTables()
+    const { id } = await params
+    const { tournaments, users } = await getTablesCached()
+    if (!tournaments || !users) {
+      return errorResponse('Database not available', 500)
+    }
     const tRows = await tournaments.getRows()
     const uRows = await users.getRows()
 
-    const tRow = tRows.find(r => r.get('_id') === params.id)
+    const tRow = tRows.find((r: any) => r.get('_id') === id)
     if (!tRow) return notFoundResponse('Tournament not found')
     
     const tournament = cleanRow(tRow)
@@ -21,20 +25,20 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
 
     // Populate Host
     const hStr = String(tournament.hostId)
-    const host = uRows.find(u => String(u.get('_id')) === hStr)
+    const host = uRows.find((u: any) => String(u.get('_id')) === hStr)
     if (host) tournament.hostId = { _id: host.get('_id'), username: host.get('username'), email: host.get('email') }
 
     // Populate Winner
     if (tournament.winnerId) {
       const wStr = String(tournament.winnerId)
-      const winner = uRows.find(u => String(u.get('_id')) === wStr)
+      const winner = uRows.find((u: any) => String(u.get('_id')) === wStr)
       if (winner) tournament.winnerId = { _id: winner.get('_id'), username: winner.get('username') }
     }
 
     // Populate Players
     tournament.players = tournament.players.map((p: any) => {
       const pStr = String(p.playerId)
-      const pu = uRows.find(u => String(u.get('_id')) === pStr)
+      const pu = uRows.find((u: any) => String(u.get('_id')) === pStr)
       if (pu) {
         return { ...p, playerId: { _id: pu.get('_id'), username: pu.get('username'), email: pu.get('email') } }
       }
@@ -44,18 +48,23 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
     return successResponse({ tournament })
   } catch (err) {
     console.error('Get tournament error:', err)
+    invalidateCache()
     return errorResponse('Failed to fetch tournament', 500)
   }
 }
 
-export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
+export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const { id } = await params
     const payload = getUserFromHeader(req.headers.get('authorization'))
     if (!payload) return unauthorizedResponse()
 
-    const { tournaments, users, notifications } = await getTables()
+    const { tournaments, users, notifications } = await getTablesCached()
+    if (!tournaments || !users || !notifications) {
+      return errorResponse('Database not available', 500)
+    }
     const tRows = await tournaments.getRows()
-    const tRow = tRows.find(r => r.get('_id') === params.id)
+    const tRow = tRows.find((r: any) => r.get('_id') === id)
     if (!tRow) return notFoundResponse('Tournament not found')
 
     const isHost = tRow.get('hostId') === payload.userId
@@ -71,7 +80,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 
     // Handle winner selection
     if (updates.winnerId && updates.winnerId !== tRow.get('winnerId')) {
-      const winnerRow = uRows.find(u => u.get('_id') === String(updates.winnerId))
+      const winnerRow = uRows.find((u: any) => u.get('_id') === String(updates.winnerId))
       if (!winnerRow) return errorResponse('Winner not found')
 
       // Notify winner
@@ -129,18 +138,23 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     return successResponse({ message: 'Update success' })
   } catch (err) {
     console.error('Update tournament error:', err)
+    invalidateCache()
     return errorResponse('Failed to update tournament', 500)
   }
 }
 
-export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const { id } = await params
     const payload = getUserFromHeader(req.headers.get('authorization'))
     if (!payload) return unauthorizedResponse()
 
-    const { tournaments } = await getTables()
+    const { tournaments } = await getTablesCached()
+    if (!tournaments) {
+      return errorResponse('Database not available', 500)
+    }
     const tRows = await tournaments.getRows()
-    const tRow = tRows.find(r => r.get('_id') === params.id)
+    const tRow = tRows.find((r: any) => r.get('_id') === id)
     if (!tRow) return notFoundResponse('Tournament not found')
 
     const isHost = tRow.get('hostId') === payload.userId
@@ -155,6 +169,7 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
     return successResponse({ message: 'Tournament deleted successfully' })
   } catch (err) {
     console.error('Delete tournament error:', err)
+    invalidateCache()
     return errorResponse('Failed to delete tournament', 500)
   }
 }

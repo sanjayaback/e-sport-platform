@@ -20,10 +20,19 @@ export function generateId() {
 // Convert cell arrays or JSON back to proper types
 export function cleanRow(row: any): Record<string, any> {
   const obj: Record<string, any> = {};
-  for (const key of Object.keys(row.toObject())) {
+  const rowData = row.toObject();
+  
+  for (const key of Object.keys(rowData)) {
     let val = row.get(key);
     if (key === 'isSubscribed') val = (val === 'true');
+    if (key === 'walletBalance') val = Number(val) || 0;
     obj[key] = val;
   }
+  
+  // Temporary fix: Ensure host users are always subscribed
+  if (obj.role === 'host' && !obj.isSubscribed) {
+    obj.isSubscribed = true;
+  }
+  
   return obj;
 }

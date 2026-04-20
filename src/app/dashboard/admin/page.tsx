@@ -80,7 +80,7 @@ export default function AdminDashboard() {
       setTournaments(tRes.data.data.tournaments);
       setPayments(pRes.data.data.payments);
       setAnalytics(aRes.data.data);
-    } catch (e) { console.error(e); }
+    } catch (e) { }
     finally { setLoading(false); }
   }, []);
 
@@ -127,8 +127,8 @@ export default function AdminDashboard() {
   const overviewStats = [
     { label: 'Tournaments', value: tournaments.length,              icon: Trophy     },
     { label: 'Live Now',    value: liveTournaments.length,          icon: TrendingUp },
-    { label: 'Revenue',     value: `$${totalRevenue.toLocaleString()}`, icon: DollarSign },
-    { label: 'Prize Pool',  value: `$${totalPrize.toLocaleString()}`,   icon: BarChart2  },
+    { label: 'Revenue',     value: `Rs.${totalRevenue.toLocaleString()}`, icon: DollarSign },
+    { label: 'Prize Pool',  value: `Rs.${totalPrize.toLocaleString()}`,   icon: BarChart2  },
     { label: 'Total Users', value: analytics?.totalPlayers || 0,   icon: Users      },
   ];
 
@@ -145,7 +145,7 @@ export default function AdminDashboard() {
   const revenueData = {
     labels: analytics?.monthlyRevenue.map(m => m.month) || [],
     datasets: [{
-      label:           'Revenue ($)',
+      label:           'Revenue (Rs.)',
       data:            analytics?.monthlyRevenue.map(m => m.revenue) || [],
       borderColor:     '#1A1C1E',
       backgroundColor: 'rgba(26,28,30,0.04)',
@@ -302,7 +302,7 @@ export default function AdminDashboard() {
                         </span>
                       </td>
                       <td className="ad-td ad-td-bold">{t.players.length}/{t.maxPlayers}</td>
-                      <td className="ad-td ad-td-prize">${t.prizePool.toLocaleString()}</td>
+                      <td className="ad-td ad-td-prize">Rs.{t.prizePool.toLocaleString()}</td>
                       <td className="ad-td">
                         {t.status === 'upcoming' && (
                           <button
@@ -383,7 +383,7 @@ export default function AdminDashboard() {
 
                       {/* Amount */}
                       <td className="ad-td">
-                        <span className="ad-amount">${p.amount.toLocaleString()}</span>
+                        <span className="ad-amount">Rs.{p.amount.toLocaleString()}</span>
                       </td>
 
                       {/* Status */}

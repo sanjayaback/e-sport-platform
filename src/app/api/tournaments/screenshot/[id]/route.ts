@@ -1,12 +1,14 @@
 export const dynamic = 'force-dynamic'
 import { NextRequest } from 'next/server'
-import { getTables, generateId } from '@/lib/db'
+import { getTablesCached, invalidateCache } from '@/lib/db-cache'
+import { generateId } from '@/lib/db'
 import { getUserFromHeader } from '@/lib/jwt'
 import { validate, screenshotSchema } from '@/lib/validation'
 import { successResponse, errorResponse, unauthorizedResponse, notFoundResponse } from '@/lib/api'
 
-export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
+export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const { id } = await params
     const payload = getUserFromHeader(req.headers.get('authorization'))
     if (!payload) return unauthorizedResponse()
 
@@ -15,9 +17,18 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     if (error) return errorResponse(error)
     const { screenshotURL } = value as { screenshotURL: string }
 
-    const { tournaments, notifications, users } = await getTables()
+    // Validate that screenshotURL is a proper Cloudinary URL
+    if (!screenshotURL.startsWith('https://res.cloudinary.com/')) {
+      return errorResponse('Invalid screenshot URL format')
+    }
+
+    const { tournaments, notifications, users } = await getTablesCached()
+    if (!tournaments || !notifications || !users) {
+      return errorResponse('Database not available', 500)
+    }
+
     const tRows = await tournaments.getRows()
-    const tournament = tRows.find(r => r.get('_id') === params.id)
+    const tournament = tRows.find((r: any) => r.get('_id') === id)
     if (!tournament) return notFoundResponse('Tournament not found')
 
     let players = []
@@ -32,7 +43,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
     // Notify host
     const uRows = await users.getRows()
-    const playerRecord = uRows.find(u => String(u.get('_id')) === payload.userId)
+    const playerRecord = uRows.find((u: any) => String(u.get('_id')) === payload.userId)
 
     await notifications.addRow({
       _id: generateId(),
@@ -46,7 +57,8 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
     return successResponse({ message: 'Screenshot submitted successfully' })
   } catch (err) {
-    console.error('Screenshot error:', err)
+    console.error('Screenshot submission error:', err)
+    invalidateCache() // Clear cache on error
     return errorResponse('Failed to submit screenshot', 500)
   }
 }

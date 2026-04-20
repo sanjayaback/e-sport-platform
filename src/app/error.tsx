@@ -4,7 +4,6 @@ import Link from 'next/link'
 import { AlertTriangle } from 'lucide-react'
 
 export default function Error({ error, reset }: { error: Error; reset: () => void }) {
-  useEffect(() => { console.error(error) }, [error])
 
   return (
     <div className="min-h-screen flex items-center justify-center px-4">

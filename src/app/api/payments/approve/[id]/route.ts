@@ -4,8 +4,9 @@ import { getTables, generateId } from '@/lib/db'
 import { getUserFromHeader } from '@/lib/jwt'
 import { successResponse, errorResponse, unauthorizedResponse, forbiddenResponse, notFoundResponse } from '@/lib/api'
 
-export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
+export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const { id } = await params
     const payload = getUserFromHeader(req.headers.get('authorization'))
     if (!payload) return unauthorizedResponse()
     if (payload.role !== 'admin') return forbiddenResponse('Only global commanders can finalize financial nodes')
@@ -15,7 +16,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 
     const { payments, users, notifications } = await getTables()
     const pRows = await payments.getRows()
-    const payment = pRows.find(r => r.get('_id') === params.id)
+    const payment = pRows.find((r: any) => r.get('_id') === id)
     if (!payment) return notFoundResponse('Financial node not found')
 
     if (payment.get('status') !== 'pending') {
@@ -27,22 +28,22 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     const playerId = payment.get('playerId')
 
     const uRows = await users.getRows()
-    const user = uRows.find(u => u.get('_id') === playerId)
-    if (!user) return notFoundResponse('User profile not found')
+    const userRow = uRows.find((u: any) => String(u.get('_id')) === playerId)
+    if (!userRow) return notFoundResponse('User profile not found')
 
-    const currentBalance = Number(user.get('walletBalance') || 0)
+    const currentBalance = Number(userRow.get('walletBalance') || 0)
 
     if (status === 'confirmed') {
       if (type === 'deposit') {
-        user.set('walletBalance', (currentBalance + amount).toFixed(2))
-        await user.save()
+        userRow.set('walletBalance', (currentBalance + amount).toFixed(2))
+        await userRow.save()
       }
       // Withdrawal was already deducted in the POST route
     } else if (status === 'failed') {
       if (type === 'withdraw') {
         // Refund withdrawal if failed
-        user.set('walletBalance', (currentBalance + amount).toFixed(2))
-        await user.save()
+        userRow.set('walletBalance', (currentBalance + amount).toFixed(2))
+        await userRow.save()
       }
     }
 

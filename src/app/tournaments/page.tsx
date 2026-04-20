@@ -38,9 +38,7 @@ export default function TournamentsPage() {
       setTournaments(list)
       setTotal(data.total)
       setPages(data.pages)
-    } catch (err) {
-      console.error(err)
-    } finally {
+    } catch (err) { } finally {
       setLoading(false)
     }
   }, [game, status, page, search])

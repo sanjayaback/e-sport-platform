@@ -13,15 +13,15 @@ export async function GET(req: NextRequest) {
     const { notifications } = await getTables()
     const rows = await notifications.getRows()
 
-    let results = rows.map(r => cleanRow(r)).filter(n => String(n.userId) === payload.userId)
+    let results = rows.map((r: any) => cleanRow(r)).filter((n: any) => String(n.userId) === payload.userId)
     
     // Convert string 'false'/'true' to boolean
-    results = results.map(n => ({ ...n, read: n.read === 'true' }))
+    results = results.map((n: any) => ({ ...n, read: n.read === 'true' }))
 
-    results.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+    results.sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
     results = results.slice(0, 50)
 
-    const unreadCount = results.filter(n => !n.read).length
+    const unreadCount = results.filter((n: any) => !n.read).length
 
     return successResponse({ notifications: results, unreadCount })
   } catch (err) {

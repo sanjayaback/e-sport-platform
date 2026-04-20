@@ -18,21 +18,21 @@ export async function GET(req: NextRequest) {
     const uRows = await users.getRows()
     const pRows = await payments.getRows()
 
-    let allTournaments = tRows.map(r => cleanRow(r))
-    allTournaments = allTournaments.map(t => {
+    let allTournaments = tRows.map((r: any) => cleanRow(r))
+    allTournaments = allTournaments.map((t: any) => {
       try { t.players = JSON.parse(t.players || '[]') } catch { t.players = [] }
       return t
     })
 
     if (payload.role === 'host') {
-      allTournaments = allTournaments.filter(t => t.hostId === payload.userId)
+      allTournaments = allTournaments.filter((t: any) => t.hostId === payload.userId)
     }
 
     const totalUsers = uRows.length
 
-    let allPayments = pRows.map(r => cleanRow(r))
+    let allPayments = pRows.map((r: any) => cleanRow(r))
     if (payload.role === 'admin') {
-      allPayments = allPayments.filter(p => p.status === 'confirmed')
+      allPayments = allPayments.filter((p: any) => p.status === 'confirmed')
     }
 
     // Per-game stats
@@ -59,11 +59,11 @@ export async function GET(req: NextRequest) {
     }
     const monthlyRevenue = Object.keys(monthlyMap).map(month => ({ month, revenue: monthlyMap[month] }))
 
-    const totalPlayers = allTournaments.reduce((sum, t) => sum + t.players.length, 0)
-    const totalPrizePool = allTournaments.reduce((sum, t) => sum + Number(t.prizePool), 0)
+    const totalPlayers = allTournaments.reduce((sum: number, t: any) => sum + t.players.length, 0)
+    const totalPrizePool = allTournaments.reduce((sum: number, t: any) => sum + Number(t.prizePool), 0)
     const totalRevenue = allPayments
-      .filter(p => p.type === 'entryFee' && p.status === 'confirmed')
-      .reduce((sum, p) => sum + Number(p.amount), 0)
+      .filter((p: any) => p.type === 'entryFee' && p.status === 'confirmed')
+      .reduce((sum: number, p: any) => sum + Number(p.amount), 0)
 
     return successResponse({
       totalTournaments: allTournaments.length,
@@ -75,7 +75,7 @@ export async function GET(req: NextRequest) {
       recentTournaments: allTournaments.slice(0, 5),
     })
   } catch (err) {
-    console.error('Analytics error:', err)
+    console.error('Error stack:', err instanceof Error ? err.stack : 'No stack trace')
     return errorResponse('Failed to fetch analytics', 500)
   }
 }

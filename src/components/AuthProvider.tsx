@@ -34,17 +34,36 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   async function fetchUser(t: string) {
     try {
       const res = await axios.get('/api/auth/me', {
-        headers: { Authorization: `Bearer ${t}` },
+        headers: { 
+          Authorization: `Bearer ${t}`,
+          'Content-Type': 'application/json'
+        },
+        timeout: 8000 // Increased timeout for slower connections
       })
       if (res.data.success && res.data.data) {
         setUser(res.data.data.user)
       } else {
         throw new Error('Identity verification failed')
       }
-    } catch {
-      localStorage.removeItem('token')
-      setToken(null)
-      setUser(null)
+    } catch (error: any) {
+      console.error('Auth error:', error)
+      // Only logout on authentication errors, not on network/server errors
+      if (error.response?.status === 401) {
+        localStorage.removeItem('token')
+        setToken(null)
+        setUser(null)
+      } else if (error.code === 'ECONNABORTED' || error.response?.status >= 500) {
+        // For timeout or server errors, keep user logged in and retry after delay
+        console.warn('Network/server error, keeping user session')
+        // Don't set loading to false yet, will retry
+        setTimeout(() => {
+          if (token) fetchUser(token)
+        }, 3000)
+        return
+      } else {
+        // For other errors, keep user logged in but stop loading
+        console.warn('Other error, keeping user session')
+      }
     } finally {
       setLoading(false)
     }
@@ -86,6 +105,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   async function refreshUser() {
     if (token) await fetchUser(token)
   }
+
+  // Add automatic token refresh every 6 days (before 7-day expiration)
+  useEffect(() => {
+    if (!token) return
+
+    const refreshInterval = setInterval(async () => {
+      try {
+        await refreshUser()
+      } catch (error) {
+        console.error('Token refresh failed:', error)
+      }
+    }, 12 * 60 * 60 * 1000) // 12 hours in milliseconds instead of 6 days
+
+    return () => clearInterval(refreshInterval)
+  }, [token])
 
   return (
     <AuthContext.Provider value={{ user, token, loading, login, register, logout, refreshUser }}>

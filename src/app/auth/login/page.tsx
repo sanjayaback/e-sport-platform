@@ -6,7 +6,10 @@ import { useRouter } from 'next/navigation'
 import { useAuth } from '@/components/AuthProvider'
 import { Mail, Lock, AlertCircle, Eye, EyeOff, ArrowLeft, ChevronRight, Zap } from 'lucide-react'
 import dynamicImport from 'next/dynamic'
-const HeroBackground = dynamicImport(() => import('@/components/effects/HeroBackground'), { ssr: false })
+const HeroBackground = dynamicImport(() => import('@/components/effects/HeroBackground'), { 
+  ssr: false,
+  loading: () => <div className="absolute inset-0 -z-10 bg-gradient-to-br from-violet-50 via-white to-indigo-50" />
+})
 
 export default function LoginPage() {
   const { login } = useAuth()
