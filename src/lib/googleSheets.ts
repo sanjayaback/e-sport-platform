@@ -1,6 +1,8 @@
 import { GoogleSpreadsheet } from 'google-spreadsheet'
 import { JWT } from 'google-auth-library'
 import { createPrivateKey } from 'crypto'
+import { existsSync, readFileSync } from 'fs'
+import { resolve } from 'path'
 
 // Mock in-memory storage for development
 const mockStorage: Record<string, any[]> = {
@@ -124,6 +126,12 @@ class MockDoc {
   }
 }
 
+interface GoogleServiceAccountConfig {
+  email: string
+  key: string
+  source: string
+}
+
 function normalizeGooglePrivateKey(rawPrivateKey: string) {
   let privateKey = rawPrivateKey.trim()
 
@@ -149,6 +157,60 @@ function normalizeGooglePrivateKey(rawPrivateKey: string) {
   return privateKey
 }
 
+function parseGoogleServiceAccountJson(rawJson: string, source: string): GoogleServiceAccountConfig {
+  let parsed: { client_email?: string; private_key?: string }
+
+  try {
+    parsed = JSON.parse(rawJson)
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : String(error)
+    throw new Error(`Could not parse Google service account JSON from ${source} (${reason})`)
+  }
+
+  if (!parsed.client_email || !parsed.private_key) {
+    throw new Error(`Google service account JSON from ${source} is missing client_email or private_key`)
+  }
+
+  return {
+    email: parsed.client_email,
+    key: normalizeGooglePrivateKey(parsed.private_key),
+    source,
+  }
+}
+
+function loadGoogleServiceAccount(): GoogleServiceAccountConfig {
+  const serviceAccountFile = process.env.GOOGLE_SERVICE_ACCOUNT_FILE?.trim()
+  if (serviceAccountFile) {
+    const resolvedPath = resolve(process.cwd(), serviceAccountFile)
+
+    if (!existsSync(resolvedPath)) {
+      throw new Error(`GOOGLE_SERVICE_ACCOUNT_FILE does not exist at ${resolvedPath}`)
+    }
+
+    return parseGoogleServiceAccountJson(
+      readFileSync(resolvedPath, 'utf8'),
+      `GOOGLE_SERVICE_ACCOUNT_FILE (${resolvedPath})`
+    )
+  }
+
+  const serviceAccountJson = process.env.GOOGLE_SERVICE_ACCOUNT_JSON?.trim()
+  if (serviceAccountJson) {
+    return parseGoogleServiceAccountJson(serviceAccountJson, 'GOOGLE_SERVICE_ACCOUNT_JSON')
+  }
+
+  if (!process.env.GOOGLE_CLIENT_EMAIL || !process.env.GOOGLE_PRIVATE_KEY) {
+    throw new Error(
+      'Missing Google Sheets credentials. Set GOOGLE_SERVICE_ACCOUNT_FILE or both GOOGLE_CLIENT_EMAIL and GOOGLE_PRIVATE_KEY.'
+    )
+  }
+
+  return {
+    email: process.env.GOOGLE_CLIENT_EMAIL,
+    key: normalizeGooglePrivateKey(process.env.GOOGLE_PRIVATE_KEY),
+    source: 'GOOGLE_CLIENT_EMAIL / GOOGLE_PRIVATE_KEY',
+  }
+}
+
 function getPrivateKeyDebugSummary(privateKey: string) {
   const lines = privateKey.split('\n').filter(Boolean)
 
@@ -163,7 +225,7 @@ function getPrivateKeyDebugSummary(privateKey: string) {
   }
 }
 
-function validateGooglePrivateKey(privateKey: string) {
+function validateGooglePrivateKey(privateKey: string, source: string) {
   try {
     createPrivateKey({ key: privateKey, format: 'pem' })
   } catch (error) {
@@ -171,29 +233,34 @@ function validateGooglePrivateKey(privateKey: string) {
     const reason = error instanceof Error ? error.message : String(error)
 
     throw new Error(
-      `GOOGLE_PRIVATE_KEY could not be parsed (${reason}). ` +
+      `Private key from ${source} could not be parsed (${reason}). ` +
       `Summary: ${JSON.stringify(details)}. ` +
-      'If you just edited .env.local, restart the Next.js server so it reloads the updated env values.'
+      'If you just edited .env.local, restart the Next.js server so it reloads the updated env values. ' +
+      'If pasting GOOGLE_PRIVATE_KEY on the VPS is unreliable, upload the JSON credentials file and set GOOGLE_SERVICE_ACCOUNT_FILE instead.'
     )
   }
 }
 
 export async function getDoc() {
-  if (!process.env.GOOGLE_CLIENT_EMAIL || !process.env.GOOGLE_PRIVATE_KEY || !process.env.GOOGLE_SHEET_ID) {
-     throw new Error("Missing Google Sheets credentials in environment variables");
+  if (!process.env.GOOGLE_SHEET_ID) {
+     throw new Error("Missing GOOGLE_SHEET_ID in environment variables");
   }
 
   try {
-    const privateKey = normalizeGooglePrivateKey(process.env.GOOGLE_PRIVATE_KEY)
-    validateGooglePrivateKey(privateKey)
+    const credentials = loadGoogleServiceAccount()
+    validateGooglePrivateKey(credentials.key, credentials.source)
 
     if (process.env.NODE_ENV !== 'production') {
-      console.log('[DEBUG] Private key format check:', getPrivateKeyDebugSummary(privateKey))
+      console.log('[DEBUG] Private key format check:', {
+        source: credentials.source,
+        email: credentials.email,
+        ...getPrivateKeyDebugSummary(credentials.key),
+      })
     }
 
     const serviceAccountAuth = new JWT({
-      email: process.env.GOOGLE_CLIENT_EMAIL,
-      key: privateKey,
+      email: credentials.email,
+      key: credentials.key,
       scopes: [
         'https://www.googleapis.com/auth/spreadsheets',
       ],

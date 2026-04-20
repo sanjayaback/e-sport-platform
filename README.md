@@ -110,6 +110,11 @@ Create a `.env.local` file:
 ```env
 # Google Sheets
 GOOGLE_SHEET_ID=your_spreadsheet_id
+
+# Option A: use the service-account JSON file directly
+# GOOGLE_SERVICE_ACCOUNT_FILE=/absolute/path/to/service-account.json
+
+# Option B: inline the service-account credentials
 GOOGLE_CLIENT_EMAIL=your-service-account@project.iam.gserviceaccount.com
 GOOGLE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n"
 

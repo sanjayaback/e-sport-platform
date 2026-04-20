@@ -29,8 +29,6 @@ const parsed = parseEnvFile(fs.readFileSync(envPath, 'utf8'))
 const required = [
   'JWT_SECRET',
   'NEXT_PUBLIC_APP_URL',
-  'GOOGLE_CLIENT_EMAIL',
-  'GOOGLE_PRIVATE_KEY',
   'GOOGLE_SHEET_ID',
   'CLOUDINARY_CLOUD_NAME',
   'CLOUDINARY_API_KEY',
@@ -61,12 +59,37 @@ for (const key of required) {
   }
 }
 
+const hasGoogleServiceAccountFile =
+  parsed.GOOGLE_SERVICE_ACCOUNT_FILE && String(parsed.GOOGLE_SERVICE_ACCOUNT_FILE).trim()
+const hasInlineGoogleCredentials =
+  parsed.GOOGLE_CLIENT_EMAIL && String(parsed.GOOGLE_CLIENT_EMAIL).trim() &&
+  parsed.GOOGLE_PRIVATE_KEY && String(parsed.GOOGLE_PRIVATE_KEY).trim()
+
+if (!hasGoogleServiceAccountFile && !hasInlineGoogleCredentials) {
+  errors.push('Missing Google Sheets credentials: set GOOGLE_SERVICE_ACCOUNT_FILE or both GOOGLE_CLIENT_EMAIL and GOOGLE_PRIVATE_KEY')
+}
+
+if (hasGoogleServiceAccountFile) {
+  const resolvedServiceAccountFile = path.resolve(process.cwd(), parsed.GOOGLE_SERVICE_ACCOUNT_FILE)
+  if (!fs.existsSync(resolvedServiceAccountFile)) {
+    errors.push(`GOOGLE_SERVICE_ACCOUNT_FILE does not exist: ${resolvedServiceAccountFile}`)
+  }
+}
+
+if (hasGoogleServiceAccountFile && hasInlineGoogleCredentials) {
+  warnings.push('Both GOOGLE_SERVICE_ACCOUNT_FILE and inline Google credentials are set; GOOGLE_SERVICE_ACCOUNT_FILE will be used')
+}
+
 if (parsed.JWT_SECRET && parsed.JWT_SECRET.length < 32) {
   errors.push('JWT_SECRET should be at least 32 characters long')
 }
 
 if (parsed.NEXT_PUBLIC_APP_URL && parsed.NEXT_PUBLIC_APP_URL !== 'https://www.ikillpro.com') {
   warnings.push(`NEXT_PUBLIC_APP_URL is "${parsed.NEXT_PUBLIC_APP_URL}", expected "https://www.ikillpro.com"`)
+}
+
+if (parsed.GOOGLE_CLIENT_EMAIL && placeholderPatterns.some((pattern) => String(parsed.GOOGLE_CLIENT_EMAIL).includes(pattern))) {
+  errors.push('Placeholder value detected for: GOOGLE_CLIENT_EMAIL')
 }
 
 if (parsed.GOOGLE_PRIVATE_KEY) {
