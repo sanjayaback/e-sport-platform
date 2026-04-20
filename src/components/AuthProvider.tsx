@@ -20,6 +20,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [token, setToken] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
 
+  function clearSession() {
+    localStorage.removeItem('token')
+    delete axios.defaults.headers.common['Authorization']
+    setToken(null)
+    setUser(null)
+  }
+
   useEffect(() => {
     const stored = localStorage.getItem('token')
     if (stored) {
@@ -46,23 +53,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         throw new Error('Identity verification failed')
       }
     } catch (error: any) {
-      console.error('Auth error:', error)
-      // Only logout on authentication errors, not on network/server errors
-      if (error.response?.status === 401) {
-        localStorage.removeItem('token')
-        setToken(null)
-        setUser(null)
+      const status = error.response?.status
+
+      // A missing user record usually means the token came from an older mock/dev session.
+      if (status === 401 || status === 404) {
+        console.warn('Session is no longer valid, clearing stored token')
+        clearSession()
       } else if (error.code === 'ECONNABORTED' || error.response?.status >= 500) {
         // For timeout or server errors, keep user logged in and retry after delay
         console.warn('Network/server error, keeping user session')
         // Don't set loading to false yet, will retry
         setTimeout(() => {
-          if (token) fetchUser(token)
+          fetchUser(t)
         }, 3000)
         return
       } else {
         // For other errors, keep user logged in but stop loading
-        console.warn('Other error, keeping user session')
+        console.error('Auth error:', error)
       }
     } finally {
       setLoading(false)
@@ -96,10 +103,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   function logout() {
-    localStorage.removeItem('token')
-    delete axios.defaults.headers.common['Authorization']
-    setToken(null)
-    setUser(null)
+    clearSession()
   }
 
   async function refreshUser() {

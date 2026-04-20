@@ -17,7 +17,7 @@ export async function GET(req: NextRequest) {
     }
 
     const rows = await users.getRows()
-    const userRow = rows.find((r: any) => r.get('_id') === payload.userId)
+    const userRow = rows.find((r: any) => String(r.get('_id')) === String(payload.userId))
 
     if (!userRow) return errorResponse('User not found', 404)
 
